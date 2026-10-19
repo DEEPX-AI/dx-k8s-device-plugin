@@ -41,7 +41,7 @@ kubectl apply -f deploy/test-pod.yaml && kubectl logs dx-m1-test
 
 | | |
 |---|---|
-| PCI vendor:device | `1ff4:0100` |
+| PCI vendor:device | `1ff4:0100` (M1), `1ff4:0110` (M1M), `1ff4:0000` (legacy ID on older firmware) |
 | Device node | `/dev/dxrtN` (one per card, char major 507) |
 | Enumeration | `ls /sys/class/dxrt/` |
 | Metadata/health | `dxcli -s [-d N]` |
