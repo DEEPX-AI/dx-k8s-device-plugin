@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/DEEPX-AI/dx-k8s-device-plugin/internal/dxdevice"
@@ -19,6 +20,19 @@ import (
 
 // FileName is our feature file under NFD's features.d directory.
 const FileName = "deepx"
+
+// labelInvalid matches runs of characters a Kubernetes label value may not hold.
+var labelInvalid = regexp.MustCompile(`[^A-Za-z0-9_.-]+`)
+
+// labelValue makes s a valid label value (<=63 chars, alphanumeric at both
+// ends). NFD silently drops a label whose value fails validation.
+func labelValue(s string) string {
+	s = labelInvalid.ReplaceAllString(s, "_")
+	if len(s) > 63 {
+		s = s[:63]
+	}
+	return strings.Trim(s, "_.-")
+}
 
 // Write renders the feature file atomically (temp+rename, same pattern as
 // cdi.Write). Version/product labels come from the first device — cards in
@@ -28,10 +42,16 @@ func Write(devs []dxdevice.Device, dir string) error {
 	fmt.Fprintf(&b, "deepx.ai/dx-m1.count=%d\n", len(devs))
 	if len(devs) > 0 {
 		d := devs[0]
-		fmt.Fprintf(&b, "deepx.ai/dx-m1.product=%s\n", d.Product)
-		fmt.Fprintf(&b, "deepx.ai/dx-m1.fw-version=%s\n", d.FWVersion)
-		fmt.Fprintf(&b, "deepx.ai/dx-m1.driver-version=%s\n", d.RTDriver)
-		fmt.Fprintf(&b, "deepx.ai/dx-m1.pcie-driver-version=%s\n", d.PCIeDriver)
+		// FW >= 2.7.6 reports "v2.7.6 (build: 4.90f4a6f)"; the label keeps
+		// only the version, which is what docs and nodeSelectors use.
+		fw := ""
+		if f := strings.Fields(d.FWVersion); len(f) > 0 {
+			fw = f[0]
+		}
+		fmt.Fprintf(&b, "deepx.ai/dx-m1.product=%s\n", labelValue(d.Product))
+		fmt.Fprintf(&b, "deepx.ai/dx-m1.fw-version=%s\n", labelValue(fw))
+		fmt.Fprintf(&b, "deepx.ai/dx-m1.driver-version=%s\n", labelValue(d.RTDriver))
+		fmt.Fprintf(&b, "deepx.ai/dx-m1.pcie-driver-version=%s\n", labelValue(d.PCIeDriver))
 	}
 
 	if err := os.MkdirAll(dir, 0o755); err != nil {
